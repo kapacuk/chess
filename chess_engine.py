@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# version 14 - redoing en passant
+# version 15 - experimental 'rewind' function
 
 # check the check code to see if special moves can allow you to escape check
 
