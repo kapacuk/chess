@@ -2,7 +2,7 @@
 # v2 - rewinds instead of simulating boards
 
 from copy import deepcopy
-from chess14 import *
+from chess_engine import *
 from numpy import array
 debug = False
 #from random import randint
