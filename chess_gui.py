@@ -63,8 +63,8 @@ class ChessBoard(wx.Frame):
         thread.setDaemon(True)
         thread.start()
 
-        wx.Frame.__init__(self, parent, title=title, size=(480, 500))
-        self.CreateStatusBar()
+        wx.Frame.__init__(self, parent, title=title, size=(480, 480))
+        #self.CreateStatusBar()
 
         self.chess_panel = wx.Panel(self)
 
