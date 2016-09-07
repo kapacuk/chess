@@ -74,7 +74,7 @@ class ChessBoard(wx.Frame):
         menuNewGame = filemenu.Append(wx.ID_ANY, "&New Game", "Clear the board and start again")
         menuAbout = filemenu.Append(wx.ID_ABOUT, "&About", "Information about this program")
         menuExit = filemenu.Append(wx.ID_EXIT, "E&xit", "Terminate the program")
-        menuExit = filemenu.Append(wx.ID_ANY, "&Undo", "Go back one move")
+        menuUndo = filemenu.Append(wx.ID_ANY, "&Undo", "Go back one move")
 
 
         menuBar = wx.MenuBar()
