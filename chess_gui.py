@@ -64,7 +64,7 @@ class ChessBoard(wx.Frame):
         thread.start()
 
         wx.Frame.__init__(self, parent, title=title, size=(480, 480))
-        #self.CreateStatusBar()
+        # self.CreateStatusBar()
 
         self.chess_panel = wx.Panel(self)
 
@@ -76,7 +76,6 @@ class ChessBoard(wx.Frame):
         menuExit = filemenu.Append(wx.ID_EXIT, "E&xit", "Terminate the program")
         menuUndo = filemenu.Append(wx.ID_ANY, "&Undo", "Go back one move")
 
-
         menuBar = wx.MenuBar()
         menuBar.Append(filemenu, "&File")
         self.SetMenuBar(menuBar)
@@ -85,7 +84,6 @@ class ChessBoard(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnExit, menuExit)
         self.Bind(wx.EVT_MENU, self.OnNewGame, menuNewGame)
         self.Bind(wx.EVT_MENU, self.OnRewind, menuUndo)
-
 
         self.chess_panel.Bind(wx.EVT_LEFT_DOWN, self.SquareClick)
         self.chess_panel.Bind(wx.EVT_RIGHT_DOWN, self.SquareRightClick)
@@ -223,7 +221,7 @@ class ChessBoard(wx.Frame):
 
     def OnNewGame(self, e):
         self.engine.stdin.write('{"command": "newGame"}\n')
-        
+
     def OnRewind(self, e):
         self.engine.stdin.write('{"command": "rewind"}\n')
 
