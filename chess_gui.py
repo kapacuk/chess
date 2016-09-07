@@ -46,18 +46,18 @@ class ChessBoard(wx.Frame):
         self.activepiece = None
         self.winner = None
 
-        self.filenames = {'wp': 'Chess_wpawn.png',
-                          'bp': 'Chess_bpawn.png',
-                          'wK': 'Chess_wking.png',
-                          'bK': 'Chess_bking.png',
-                          'wQ': 'Chess_wqueen.png',
-                          'bQ': 'Chess_bqueen.png',
-                          'wB': 'Chess_wbishop.png',
-                          'bB': 'Chess_bbishop.png',
-                          'wN': 'Chess_wknight.png',
-                          'bN': 'Chess_bknight.png',
-                          'wR': 'Chess_wrook.png',
-                          'bR': 'Chess_brook.png'}
+        self.filenames = {'wp': 'png/Chess_wpawn.png',
+                          'bp': 'png/Chess_bpawn.png',
+                          'wK': 'png/Chess_wking.png',
+                          'bK': 'png/Chess_bking.png',
+                          'wQ': 'png/Chess_wqueen.png',
+                          'bQ': 'png/Chess_bqueen.png',
+                          'wB': 'png/Chess_wbishop.png',
+                          'bB': 'png/Chess_bbishop.png',
+                          'wN': 'png/Chess_wknight.png',
+                          'bN': 'png/Chess_bknight.png',
+                          'wR': 'png/Chess_wrook.png',
+                          'bR': 'png/Chess_brook.png'}
 
         thread = threading.Thread(target=self.run)
         thread.setDaemon(True)
