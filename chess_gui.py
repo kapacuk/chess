@@ -227,9 +227,6 @@ class ChessBoard(wx.Frame):
     def OnRewind(self, e):
         self.engine.stdin.write('{"command": "rewind"}\n')
 
-    def OnSize(self, e):
-        print "Resize event"
-        self.DrawBoard(self.boardstate)
 
 if __name__ == '__main__':
     app = None
