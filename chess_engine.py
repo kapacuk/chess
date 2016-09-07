@@ -40,6 +40,9 @@ def gui_process(jsonstring):
         mainboard = Board()
         mainboard.newgame()
         gui_sendboard(mainboard)
+  	elif command == u'rewind':
+		mainboard.rewind()
+		gui_sendboard(mainboard)
 
 
 def gui_sendboard(boardstate):
@@ -644,12 +647,6 @@ class Board(object):
             legal_moves[piece] = newmoves
         return legal_moves, pseudolegal_specials
 
-#   def prune_all_moves(self, movelist): # used when your king is in check - checks all moves to see if they leave you in check
-#       log("Pruning movelist")
-#       pruned_moves = {} # create a new dict for valid moves in check
-#       pass
-#       return pruned_moves
-
     def display(self, view='white'):
         if view == 'black':
             boardrange = [range(1, 9), range(8, 0, -1)]
@@ -840,16 +837,6 @@ class Board(object):
                                  'R': Rook,
                                  'Q': Queen,
                                  'B': Bishop}
-                # if instring[0] == 'N':
-                #     piece_class = Knight
-                # elif instring[0] == 'K':
-                #     piece_class = King
-                # elif instring[0] == 'R':
-                #     piece_class = Rook
-                # elif instring[0] == 'Q':
-                #     piece_class = Queen
-                # elif instring[0] == 'B':
-                #     piece_class = Bishop
                 piece_class = piece_symbols[instring[0]]
                 move_count = 0
                 for piece, moves in self.available_moves.iteritems():
