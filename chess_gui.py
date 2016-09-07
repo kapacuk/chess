@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 import wx
@@ -37,7 +38,7 @@ def string_to_square(string):
 
 class ChessBoard(wx.Frame):
     def __init__(self, parent, title):
-        self.engine = subprocess.Popen('/home/andrey/Dropbox/Python/chess14.py',
+        self.engine = subprocess.Popen('./chess_engine.py',
                                        stdout=subprocess.PIPE, stdin=subprocess.PIPE,
                                        bufsize=0, universal_newlines=True)
         self.engine.stdin.write('{"command": "newGame"}\n')
