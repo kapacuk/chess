@@ -40,9 +40,9 @@ def gui_process(jsonstring):
         mainboard = Board()
         mainboard.newgame()
         gui_sendboard(mainboard)
-  	elif command == u'rewind':
-		mainboard.rewind()
-		gui_sendboard(mainboard)
+    elif command == u'rewind':
+        mainboard.rewind()
+        gui_sendboard(mainboard)
 
 
 def gui_sendboard(boardstate):
