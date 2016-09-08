@@ -2,12 +2,15 @@
 # v2 - rewinds instead of simulating boards
 
 from copy import deepcopy
-from chess_engine import parse, randint, chess12, Piece, Pawn
+from chess_engine2 import parse, Board, Piece, Pawn
 from numpy import array
+import sys
 debug = False
-# from random import randint
 
-# piece square tables- are these symmetrical? I don't think the queen is
+b = Board()
+b.newgame()
+
+# piece square tables and piece values based on simplified evaluation function by Tomasz Michniewski
 
 pawnmatrix = [
     [ 0,  0,  0,  0,  0,  0,  0,  0],
@@ -99,9 +102,9 @@ piecevals = {
     'p': 100,
     'R': 500,
     'Q': 900,
-    'N': 295,
-    'B': 305,
-    'K': 5000
+    'N': 320,
+    'B': 330,
+    'K': 20000
 }
 
 weights = {'piece_weights': piecevals, 'square_weights': posvalmatrix}
@@ -123,7 +126,7 @@ def piece_pos_value(piece):
 
 def positional_advantage(board, col):
     adv = 0
-    for piece in board.pieces.values():
+    for piece in board.pieces:
         if piece.col == col:
             colval = 1
         else:
@@ -136,7 +139,7 @@ def positional_advantage(board, col):
 def count_material(board, col):
     global piecevals
     val_total = 0
-    for p in board.pieces.values():
+    for p in board.pieces:
         if p.col == col:
             val_total += piecevals[p.display()[1]]
     return val_total
@@ -171,7 +174,7 @@ def check_pawns(board, col):
     dp = 0  # doubled pawns (two pawns on one file)
     bp = 0  # blocked pawns (pawns that cannot advance directly forward)
     ip = 0  # isolated pawns (pawns without a pawn on an adjacent file)
-    for p in board.pieces.values():
+    for p in board.pieces:
         if isinstance(p, Pawn) and p.col == col and p.pos is not None:
             if p.pos[0] in pawn_files:
                 dp += 1
@@ -189,25 +192,69 @@ def check_pawns(board, col):
     return dp, bp, ip
 
 
-def evaluate(board, verbose=False):
-    material_weight = 1
-    position_weight = 5
+def evaluate(board, verbose=False, col=None, complexity = 3):
+    if col is None:
+        col = board.whose_turn
+    if col == 'white':
+        direction = 1
+    else:
+        direction = -1
+    material_weight = 10
+    position_weight = 10
     # threat_weight = 1
-    bp_weight, ip_weight, dp_weight = 25, 75, 50
+    bp_weight, ip_weight, dp_weight = 250, 750, 500 # millipawns
+
     material_advantage = (count_material(board, 'white') - count_material(board, 'black')) * material_weight
-    pos_advantage = (positional_advantage(board, 'white') - positional_advantage(board, 'black')) * position_weight
+    if complexity > 1:
+        pos_advantage = (positional_advantage(board, 'white') - positional_advantage(board, 'black')) * position_weight
+    else:
+        pos_advantage = 0
     # mobility = (count_moves(board, 'white') - count_moves(board, 'black')) * mobility_weight
     # threats = (count_threats(board, 'white') - count_threats(board, 'black')) * threat_weight
-    dp, bp, ip = tuple(-array(check_pawns(board, 'white')) + array(check_pawns(board, 'black')))
-    problem_pawns = sum([bp*bp_weight, ip*ip_weight, dp*dp_weight])
+    if complexity > 2:
+        dp, bp, ip = tuple(-array(check_pawns(board, 'white')) + array(check_pawns(board, 'black')))
+        problem_pawns = sum([bp*bp_weight, ip*ip_weight, dp*dp_weight])
+    else:
+        problem_pawns = 0
 
     if verbose:
-        print "Material advantage: %s" % material_advantage
-        print "Positional advantage: %s" % pos_advantage
-        # print "Threat advantage: %s" % threats
-        print "Doubled, blocked, isolated pawn advantage: %s, %s, %s" % (dp*dp_weight, bp*bp_weight, ip*ip_weight)
-        print "Total favourability for white: %s" % sum([material_advantage, pos_advantage, problem_pawns])
-    return sum([material_advantage, pos_advantage, problem_pawns])
+        print "Material advantage: %s" % (material_advantage * direction)
+        if complexity > 1:
+            print "Positional advantage: %s" % (pos_advantage * direction)
+            # print "Threat advantage: %s" % threats
+        if complexity > 2:
+            print "Doubled, blocked, isolated pawn advantage: %s, %s, %s" % (dp*dp_weight*direction, bp*bp_weight*direction, ip*ip_weight*direction)
+        print "Total favourability for %s: %s" % (col, (sum([material_advantage, pos_advantage, problem_pawns]) * direction))
+    return sum([material_advantage, pos_advantage, problem_pawns]) * direction
+
+def negamax(board, ply=3, lastmove=None, bestmove=None):
+    col = board.whose_turn
+    movelist = get_movelist(board)
+    if ply == 0:
+        return evaluate(board, 0, col)
+    elif ply == 2:
+        print "trying %s" % str(lastmove)
+    max_score = -100000
+    for move in movelist:
+        #print "%smoving %s from %s to %s" % (' '*ply, board.squares[move[0]], parse(move[0]), parse(move[1]))
+        try:
+            board.move(move[0], move[1])
+        except:
+            print "Move failed. The piece was %s" % board.squares[move[0]]
+            print "From %s to %s" % (parse(move[0]), parse(move[1]))
+            print "after %s" % str(lastmove)
+            print board
+            sys.exit()
+        score, internal_bestmove = -negamax(board, ply-1, move, bestmove)
+        board.rewind()
+        if score > max_score:
+            max_score = score
+            bestmove = internal_bestmove
+    return (max_score, bestmove)
+
+
+
+
 
 
 def lookahead(board, depth=2, max_depth=2):  # simulates all possible moves for boards at an arbitrary depth
@@ -307,7 +354,21 @@ def sim_move(board, move):  # move should be a tuple of tuples
 
 
 def play_game():
-    mainboard = chess12.Board()
+    mainboard = Board()
     mainboard.newgame()
     while mainboard.winner is None:
         make_best_move(mainboard)
+
+
+
+### testing promotion, promotion rewind
+b.play('e4')
+b.play('d5')
+b.play('exd5')
+b.play('c6')
+b.play('dxc6')
+b.play('h6')
+b.play('cxb7')
+b.play('Na6')
+b.play('bxc8=Q')
+b.rewind()

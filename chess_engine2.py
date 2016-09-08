@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# version 15 - experimental 'rewind' function
+# chess_engine2: board.pieces turned into a list instead of dict
+# available_moves turned from object-linked to squares
 
 # check the check code to see if special moves can allow you to escape check
 
@@ -64,8 +65,8 @@ def gui_sendboard(boardstate):
 
 def gui_sendmoves(board_obj, piece_pos):
     newlist = []
-    piece = board_obj.squares[piece_pos]
-    moves = board_obj.available_moves[piece]
+    #piece = board_obj.squares[piece_pos]
+    moves = board_obj.available_moves[piece_pos]
     for move in moves:
         newlist.append(str(move[0])+str(move[1]))
     jsonout = {'message': 'pieceMoves', 'piecePos': str(piece_pos[0]) + str(piece_pos[1]), 'moves': newlist}
@@ -146,13 +147,11 @@ class Piece(object):
             log("Can %s move from %s to %s?" % (self, parse(self.pos), parse(newpos)))
             # print self
             try:
-                piece_movelist = board_obj.available_moves[self]
-            except:
-                print "PROBLEMMM"
-                print "piece: "
-                print self
-                print "position:"
-                print parse(self.pos)
+                piece_movelist = board_obj.available_moves[self.pos]
+            except Exception as x:
+                print "Problem moving piece: %s" % x
+                print "piece: %s" % self
+                print "position: %s" % parse(self.pos)
                 print "board state:"
                 print board_obj
             if newpos in piece_movelist:
@@ -185,7 +184,7 @@ class Piece(object):
                 board_obj.movehistory.append(((self.pos, newpos), 'capture'))
                 target = board_obj.squares[newpos]
                 log("Handling %s capture by %s" % (target.display(), self.display()))
-                target.remove(board_obj)
+                target.kill(board_obj)
                 board_obj.squares[newpos] = self
                 board_obj.squares[self.pos] = None
                 self.pos = newpos
@@ -194,16 +193,17 @@ class Piece(object):
         else:
             board_obj.playermessage("Illegal move")
 
-    def remove(self, board_obj):
-        log("Removing %s" % self.display())
+    def kill(self, board_obj):
+        log("Killing %s" % self.display())
         board_obj.squares[self.pos] = None
         self.pos = None
         if board_obj.real_game:
             board_obj.deadpieces.append(self)
-            for key in board_obj.pieces:  # possibly a hack - find self in the board pieces array
-                if board_obj.pieces[key] == self:
-                    del board_obj.pieces[key]
-                    break
+            board_obj.pieces.remove(self)
+#            for piece in board_obj.pieces:  # possibly a hack - find self in the board pieces array
+#                if board_obj.pieces[piece] == self:
+#                    del board_obj.pieces[piece]
+#                    break
 
     def display(self):
         return('%s%s' % (self.col[0], self.symbol))
@@ -470,7 +470,7 @@ class Pawn(Piece):
             newpos = array(self.pos) + self.movedir*2
             moveset.append(newpos)
             possible_specials.append([tuple(newpos), 'pawndouble'])
-        for move in moveset:  # check for straightorward moves
+        for move in moveset:  # check for straightforward moves
             if not isinstance(board_obj.squares[tuple(move)], Piece):  # valid move
                 if not attack_map:
                     # does not consider places that pawns can move to be 'threatened' squares according to attack map
@@ -528,7 +528,7 @@ class Pawn(Piece):
                 attackdir = array((0, -1))
             diag = array(square) - array(self.pos)
             captured_pawn = board_obj.squares[tuple(array(self.pos) + (diag - attackdir))]
-            captured_pawn.remove(board_obj)
+            captured_pawn.kill(board_obj)
             board_obj.squares[self.pos] = None
             self.pos = square
             board_obj.squares[square] = self
@@ -538,18 +538,31 @@ class Pawn(Piece):
 
     def promote(self, new_pos, piece_class, board_obj):
         if self.is_pseudolegal(new_pos, board_obj):
-            for key, value in board_obj.pieces.iteritems():  # possibly a hack - find self in the board pieces array
-                if board_obj.pieces[key] == self:
-                    board_obj.squares[self.pos] = None
-                    self = piece_class(self.col, self.pos)
-                    if board_obj.squares[new_pos] is not None:
-                        board_obj.squares[new_pos].remove(board_obj)
-                    board_obj.squares[new_pos] = self
-                    board_obj.movehistory.append((self.pos, new_pos), 'promotion')
-                    self.pos = new_pos
-                    board_obj.pieces[key] = self
-                    board_obj.advance_turn()
-                    break
+            board_obj.squares[self.pos] = None
+            board_obj.pieces.remove(self)
+            self = piece_class(self.col, self.pos)
+            if board_obj.squares[new_pos] is not None:
+                board_obj.squares[new_pos].kill(board_obj)
+                board_obj.movehistory.append(((self.pos, new_pos), 'promocapture'))
+            else:
+                board_obj.movehistory.append(((self.pos, new_pos), 'promotion'))
+            board_obj.squares[new_pos] = self
+            self.pos = new_pos
+            board_obj.pieces.append(self)
+            board_obj.advance_turn()
+#
+#            for key, value in board_obj.pieces.iteritems():  # possibly a hack - find self in the board pieces array
+#                if board_obj.pieces[key] == self:
+#                    board_obj.squares[self.pos] = None
+#                    self = piece_class(self.col, self.pos)
+#                    if board_obj.squares[new_pos] is not None:
+#                        board_obj.squares[new_pos].remove(board_obj)
+#                    board_obj.squares[new_pos] = self
+#                    board_obj.movehistory.append((self.pos, new_pos), 'promotion')
+#                    self.pos = new_pos
+#                    board_obj.pieces[key] = self
+#                    board_obj.advance_turn()
+#                    break
             # self.move(new_pos, board_obj, force=True)
         else:
             board_obj.playermessage("Illegal move")
@@ -557,52 +570,54 @@ class Pawn(Piece):
 
 class Board(object):
     def newgame(self):
-        piecenames = ['w_q_rook', 'w_q_knight', 'w_q_bishop', 'w_queen', 'w_king', 'w_k_bishop',
-                      'w_k_knight', 'w_k_rook', 'b_q_rook', 'b_q_knight', 'b_q_bishop', 'b_queen',
-                      'b_king', 'b_k_bishop', 'b_k_knight', 'b_k_rook', 'w_a_pawn', 'w_b_pawn',
-                      'w_c_pawn', 'w_d_pawn', 'w_e_pawn', 'w_f_pawn', 'w_g_pawn', 'w_h_pawn',
-                      'b_a_pawn', 'b_b_pawn', 'b_c_pawn', 'b_d_pawn', 'b_e_pawn', 'b_f_pawn',
-                      'b_g_pawn', 'b_h_pawn']
-        self.pieces = {piecenames[0]: Rook('white', (1, 1)),
-                       piecenames[1]: Knight('white', (2, 1)),
-                       piecenames[2]: Bishop('white', (3, 1)),
-                       piecenames[3]: Queen('white', (4, 1)),
-                       piecenames[4]: King('white', (5, 1)),
-                       piecenames[5]: Bishop('white', (6, 1)),
-                       piecenames[6]: Knight('white', (7, 1)),
-                       piecenames[7]: Rook('white', (8, 1)),
-                       piecenames[8]: Rook('black', (1, 8)),
-                       piecenames[9]: Knight('black', (2, 8)),
-                       piecenames[10]: Bishop('black', (3, 8)),
-                       piecenames[11]: Queen('black', (4, 8)),
-                       piecenames[12]: King('black', (5, 8)),
-                       piecenames[13]: Bishop('black', (6, 8)),
-                       piecenames[14]: Knight('black', (7, 8)),
-                       piecenames[15]: Rook('black', (8, 8)),
-                       piecenames[16]: Pawn('white', (1, 2)),
-                       piecenames[17]: Pawn('white', (2, 2)),
-                       piecenames[18]: Pawn('white', (3, 2)),
-                       piecenames[19]: Pawn('white', (4, 2)),
-                       piecenames[20]: Pawn('white', (5, 2)),
-                       piecenames[21]: Pawn('white', (6, 2)),
-                       piecenames[22]: Pawn('white', (7, 2)),
-                       piecenames[23]: Pawn('white', (8, 2)),
-                       piecenames[24]: Pawn('black', (1, 7)),
-                       piecenames[25]: Pawn('black', (2, 7)),
-                       piecenames[26]: Pawn('black', (3, 7)),
-                       piecenames[27]: Pawn('black', (4, 7)),
-                       piecenames[28]: Pawn('black', (5, 7)),
-                       piecenames[29]: Pawn('black', (6, 7)),
-                       piecenames[30]: Pawn('black', (7, 7)),
-                       piecenames[31]: Pawn('black', (8, 7))}
+#        piecenames = ['w_q_rook', 'w_q_knight', 'w_q_bishop', 'w_queen', 'w_king', 'w_k_bishop',
+#                      'w_k_knight', 'w_k_rook', 'b_q_rook', 'b_q_knight', 'b_q_bishop', 'b_queen',
+#                      'b_king', 'b_k_bishop', 'b_k_knight', 'b_k_rook', 'w_a_pawn', 'w_b_pawn',
+#                      'w_c_pawn', 'w_d_pawn', 'w_e_pawn', 'w_f_pawn', 'w_g_pawn', 'w_h_pawn',
+#                      'b_a_pawn', 'b_b_pawn', 'b_c_pawn', 'b_d_pawn', 'b_e_pawn', 'b_f_pawn',
+#                      'b_g_pawn', 'b_h_pawn']
+        self.pieces = [Rook('white', (1, 1)),
+                       Knight('white', (2, 1)),
+                       Bishop('white', (3, 1)),
+                       Queen('white', (4, 1)),
+                       King('white', (5, 1)),
+                       Bishop('white', (6, 1)),
+                       Knight('white', (7, 1)),
+                       Rook('white', (8, 1)),
+                       Rook('black', (1, 8)),
+                       Knight('black', (2, 8)),
+                       Bishop('black', (3, 8)),
+                       Queen('black', (4, 8)),
+                       King('black', (5, 8)),
+                       Bishop('black', (6, 8)),
+                       Knight('black', (7, 8)),
+                       Rook('black', (8, 8)),
+                       Pawn('white', (1, 2)),
+                       Pawn('white', (2, 2)),
+                       Pawn('white', (3, 2)),
+                       Pawn('white', (4, 2)),
+                       Pawn('white', (5, 2)),
+                       Pawn('white', (6, 2)),
+                       Pawn('white', (7, 2)),
+                       Pawn('white', (8, 2)),
+                       Pawn('black', (1, 7)),
+                       Pawn('black', (2, 7)),
+                       Pawn('black', (3, 7)),
+                       Pawn('black', (4, 7)),
+                       Pawn('black', (5, 7)),
+                       Pawn('black', (6, 7)),
+                       Pawn('black', (7, 7)),
+                       Pawn('black', (8, 7))]
         self.squares = {}
         for p in self.pieces:
-            self.squares[self.pieces[p].pos] = self.pieces[p]
+            self.squares[p.pos] = p
         for x in range(1, 9):
             for y in range(1, 9):
                 if (x, y) not in self.squares:
                     self.squares[(x, y)] = None
         self.whose_turn = 'white'
+        self.wking = self.squares[(5,1)]
+        self.bking = self.squares[(5,8)]
         self.check = False
         self.checking_piece = None  # only a single piece, but it shouldn't be referred to if in double check
         self.pinned_pieces = {}  # pinned_pieces should be a dict with the piece as they key, and the vector of the pin as values
@@ -627,11 +642,11 @@ class Board(object):
         log("Generating new list of moves for %s" % col)
         all_moves = {}  # a dict of piece names, and their moves
         all_specials = {}
-        for piece_name, piece_obj in self.pieces.iteritems():
+        for piece_obj in self.pieces:
             if piece_obj.col == col and piece_obj.pos is not None:  # only pieces of the given colour
                 # print piece_obj
                 piece_moves, piece_specials = piece_obj.gen_moves(self, attack_map)
-                all_moves[piece_obj] = piece_moves
+                all_moves[piece_obj.pos] = piece_moves
                 all_specials[piece_obj] = piece_specials
         return all_moves, all_specials
 
@@ -645,9 +660,9 @@ class Board(object):
 
         # calculate attack vector - this will be messy code
         if col == 'white':  # this is a stupid way of doing it, but i can't think of a better way without tearing up everything
-            checked_king = self.pieces['w_king']
+            checked_king = self.wking
         else:
-            checked_king = self.pieces['b_king']
+            checked_king = self.bking
 
         if isinstance(self.checking_piece, SlidingPiece):
             attack_vector = get_vector(checked_king.pos, self.checking_piece.pos)  # vector of positions between king and checker
@@ -742,7 +757,7 @@ class Board(object):
         for piece, vector in self.pinned_pieces.iteritems():  # prune moves for pinned pieces
                 new_movelist = []
                 try:
-                    for move in self.available_moves[piece]:
+                    for move in self.available_moves[piece.pos]:
                         if move in vector:
                             new_movelist.append(move)
                 except:
@@ -753,7 +768,7 @@ class Board(object):
                     print parse(piece.pos)
                     print "board state:"
                     print self
-                self.available_moves[piece] = new_movelist
+                self.available_moves[piece.pos] = new_movelist
         if self.enpassant_clock is 2:
             self.enpassant_clock = 1
         else:
@@ -825,17 +840,17 @@ class Board(object):
             instring = instring[0:-2]
         if instring == "O-O-O" or instring == "0-0-0":
             if self.whose_turn == 'white':
-                self.pieces['w_king'].castle('qside', self)
+                self.wking.castle('qside', self)
                 done = True
             else:
-                self.pieces['b_king'].castle('qside', self)
+                self.bking.castle('qside', self)
                 done = True
         elif instring == "O-O" or instring == "0-0":
             if self.whose_turn == 'white':
-                self.pieces['w_king'].castle('kside', self)
+                self.wking.castle('kside', self)
                 done = True
             else:
-                self.pieces['b_king'].castle('kside', self)
+                self.bking.castle('kside', self)
                 done = True
         elif len(instring) == 2:  # simple pawn move
             newsquare = parse(''.join(instring))
@@ -873,7 +888,8 @@ class Board(object):
                                  'B': Bishop}
                 piece_class = piece_symbols[instring[0]]
                 move_count = 0
-                for piece, moves in self.available_moves.iteritems():
+                for piece_pos, moves in self.available_moves.iteritems():
+                    piece = self.squares[piece_pos]
                     if newsquare in moves and isinstance(piece, piece_class):
                         move_count += 1
                         right_piece = piece
@@ -894,7 +910,8 @@ class Board(object):
                             done = True
                             break
                 if not done:
-                    for piece, moves in self.available_moves.iteritems():
+                    for piece_pos, moves in self.available_moves.iteritems():
+                        piece = self.squares[piece_pos]
                         if newsquare in moves and isinstance(piece, Pawn):
                             if piece.pos[0] == ord(instring[0]) - 96:
                                 if new_piece_class is not None:
@@ -923,7 +940,8 @@ class Board(object):
             else:
                 piece_rank = int(instring[1])
             move_count = 0
-            for piece, moves in self.available_moves.iteritems():
+            for piece_pos, moves in self.available_moves.iteritems():
+                piece = self.squares[piece_pos]
                 if newsquare in moves and isinstance(piece, piece_class):
                     if 'piece_file' in locals():
                         if piece.pos[0] == piece_file:
@@ -966,7 +984,7 @@ class Board(object):
             cap_piece = self.deadpieces.pop()
             cap_piece.pos = newpos
             self.squares[newpos] = cap_piece
-            self.pieces[cap_piece.display()+str(self.turn)+str(newpos)] = cap_piece  # arbitrary piece name, shouldn't matter
+            self.pieces.append(cap_piece)  # arbitrary piece name, shouldn't matter
         elif movetype == 'enpassant':
             if self.whose_turn == 'white':
                 movedir = array((0, 1))
@@ -976,7 +994,7 @@ class Board(object):
             cap_piece = self.deadpieces.pop()
             cap_piece.pos = deadpos
             self.squares[deadpos] = cap_piece
-            self.pieces[cap_piece.display()+str(self.turn)] = cap_piece
+            self.pieces.append(cap_piece)
         elif movetype == 'kside':
             if self.whose_turn == 'white':
                 rook_original_pos = (8, 1)
@@ -1006,7 +1024,10 @@ class Board(object):
             rookpiece.has_moved = False
             piece.has_moved = False
         if 'promo' in movetype:
+            self.pieces.remove(piece)
             piece = Pawn(self.whose_turn, oldpos)
+            self.squares[oldpos] = piece
+            self.pieces.append(piece)
 
         self.halfmove_clock = self.halfmove_history.pop()
 
@@ -1023,59 +1044,59 @@ class Board(object):
             self.available_moves, self.available_specials = self.gen_all_moves(self.whose_turn)  # generate moves for the new player
         for piece, vector in self.pinned_pieces.iteritems():  # prune moves for pinned pieces
                 new_movelist = []
-                for move in self.available_moves[piece]:
+                for move in self.available_moves[piece.pos]:
                     if move in vector:
                         new_movelist.append(move)
-                self.available_moves[piece] = new_movelist
+                self.available_moves[piece.pos] = new_movelist
 
-    def encode(self):
-        charlist = []
-        for y in range(8, 0, -1):
-            emptycount = 0
-            if y != 8:
-                charlist.append('/')
-            for x in range(1, 9):
-                if isinstance(self.squares[(x, y)], Piece):
-                    if emptycount != 0:
-                        charlist.append(str(emptycount))
-                        emptycount = 0
-                    charlist.append(self.squares[(x, y)].fensymbol)
-                else:
-                    emptycount += 1
-            if emptycount != 0:
-                charlist.append(str(emptycount))
-            # charlist.append('/')
-
-        charlist.append(' %s ' % self.whose_turn[0])
-
-        castlecount = 0
-        if not(self.pieces['w_king'].has_moved or self.pieces['w_k_rook'].has_moved):
-            charlist.append('K')
-            castlecount += 1
-        if not(self.pieces['w_king'].has_moved or self.pieces['w_q_rook'].has_moved):
-            charlist.append('Q')
-            castlecount += 1
-        if not(self.pieces['b_king'].has_moved or self.pieces['b_k_rook'].has_moved):
-            charlist.append('k')
-            castlecount += 1
-        if not(self.pieces['b_king'].has_moved or self.pieces['b_q_rook'].has_moved):
-            charlist.append('q')
-            castlecount += 1
-        if castlecount == 0:
-            charlist.append('-')
-
-        if self.enpassant is not None:
-            charlist.append(' %s' % parse(self.enpassant))
-        else:
-            charlist.append(' -')
-        charlist.append(' %s' % self.halfmove_clock)
-        charlist.append(' %s' % self.turn)
-
-        return ''.join(charlist)
+#    def encode(self):
+#        charlist = []
+#        for y in range(8, 0, -1):
+#            emptycount = 0
+#            if y != 8:
+#                charlist.append('/')
+#            for x in range(1, 9):
+#                if isinstance(self.squares[(x, y)], Piece):
+#                    if emptycount != 0:
+#                        charlist.append(str(emptycount))
+#                        emptycount = 0
+#                    charlist.append(self.squares[(x, y)].fensymbol)
+#                else:
+#                    emptycount += 1
+#            if emptycount != 0:
+#                charlist.append(str(emptycount))
+#            # charlist.append('/')
+#
+#        charlist.append(' %s ' % self.whose_turn[0])
+#        # WIP - find a way to refer to these rooks - until then, don't encode
+#        castlecount = 0
+#        if not(self.wking.has_moved or self.pieces['w_k_rook'].has_moved):
+#            charlist.append('K')
+#            castlecount += 1
+#        if not(self.wking.has_moved or self.pieces['w_q_rook'].has_moved):
+#            charlist.append('Q')
+#            castlecount += 1
+#        if not(self.bking.has_moved or self.pieces['b_k_rook'].has_moved):
+#            charlist.append('k')
+#            castlecount += 1
+#        if not(self.bking.has_moved or self.pieces['b_q_rook'].has_moved):
+#            charlist.append('q')
+#            castlecount += 1
+#        if castlecount == 0:
+#            charlist.append('-')
+#
+#        if self.enpassant is not None:
+#            charlist.append(' %s' % parse(self.enpassant))
+#        else:
+#            charlist.append(' -')
+#        charlist.append(' %s' % self.halfmove_clock)
+#        charlist.append(' %s' % self.turn)
+#
+#        return ''.join(charlist)
 
     def playermessage(self, message):
         if self.real_game:
-            # print message
+            #print message
             pass
 
     def __init__(self):
@@ -1087,86 +1108,86 @@ def log(message):
         print message
 
 
-def decode(fenstring):
-    b = Board()
-    b.squares = {}
-    b.pieces = {}
-    fen_symbols = {'r': (Rook, 'black'),
-                   'n': (Knight, 'black'),
-                   'b': (Bishop, 'black'),
-                   'k': (King, 'black'),
-                   'q': (Queen, 'black'),
-                   'p': (Pawn, 'black'),
-                   'R': (Rook, 'white'),
-                   'N': (Knight, 'white'),
-                   'B': (Bishop, 'white'),
-                   'K': (King, 'white'),
-                   'Q': (Queen, 'white'),
-                   'P': (Pawn, 'white')}
-    squarenum = 0
-    fenlist = fenstring.split(' ')
-    for char in fenlist[0]:
-        col = 8 - (squarenum // 8)
-        row = (squarenum % 8) + 1
-        if char.isdigit():
-            for n in range(0, int(char)):
-                col = 8 - (squarenum // 8)
-                row = (squarenum % 8) + 1
-                b.squares[(row, col)] = None
-                squarenum += 1
-        elif char == '/':
-            pass
-        else:
-            lookup = fen_symbols[char]
-            piece = lookup[0](lookup[1], (row, col))
-            b.squares[(row, col)] = piece
-            b.pieces['%s%s' % (char, squarenum)] = piece
-            # check castling availability:
-            if (char == 'r') and ((row, col) == (1, 8)) and ('q' in fenlist[2]):
-                piece.has_moved = False
-            else:
-                piece.has_moved = True
-            if (char == 'r') and ((row, col) == (8, 8)) and ('k' in fenlist[2]):
-                piece.has_moved = False
-            else:
-                piece.has_moved = True
-            if (char == 'R') and ((row, col) == (1, 1)) and ('Q' in fenlist[2]):
-                piece.has_moved = False
-            else:
-                piece.has_moved = True
-            if (char == 'R') and ((row, col) == (8, 1)) and ('K' in fenlist[2]):
-                piece.has_moved = False
-            else:
-                piece.has_moved = True
-            squarenum += 1
-
-    if fenlist[1] == 'w':  # this is the opposite, so we can advance turn later
-        b.whose_turn = 'black'
-    else:
-        b.whose_turn = 'white'
-
-    if fenlist[3] != '-':
-        b.enpassant = (row, col)
-        b.enpassant_clock = 1
-    else:
-        b.enpassant = None
-        b.enpassant_clock = 0
-
-    b.halfmove_clock = int(fenlist[4]) - 1
-    b.turn = int(fenlist[5]) - 1
-
-    b.check = False
-    b.checking_piece = None
-    b.pinned_pieces = {}
-    b.winner = None
-    b.threatened_moves = {}
-    b.deadpieces = []
-    b.movehistory = []
-    b.real_game = False
-
-    b.advance_turn()
-
-    return b
+#def decode(fenstring):
+#    b = Board()
+#    b.squares = {}
+#    b.pieces = {}
+#    fen_symbols = {'r': (Rook, 'black'),
+#                   'n': (Knight, 'black'),
+#                   'b': (Bishop, 'black'),
+#                   'k': (King, 'black'),
+#                   'q': (Queen, 'black'),
+#                   'p': (Pawn, 'black'),
+#                   'R': (Rook, 'white'),
+#                   'N': (Knight, 'white'),
+#                   'B': (Bishop, 'white'),
+#                   'K': (King, 'white'),
+#                   'Q': (Queen, 'white'),
+#                   'P': (Pawn, 'white')}
+#    squarenum = 0
+#    fenlist = fenstring.split(' ')
+#    for char in fenlist[0]:
+#        col = 8 - (squarenum // 8)
+#        row = (squarenum % 8) + 1
+#        if char.isdigit():
+#            for n in range(0, int(char)):
+#                col = 8 - (squarenum // 8)
+#                row = (squarenum % 8) + 1
+#                b.squares[(row, col)] = None
+#                squarenum += 1
+#        elif char == '/':
+#            pass
+#        else:
+#            lookup = fen_symbols[char]
+#            piece = lookup[0](lookup[1], (row, col))
+#            b.squares[(row, col)] = piece
+#            b.pieces['%s%s' % (char, squarenum)] = piece
+#            # check castling availability:
+#            if (char == 'r') and ((row, col) == (1, 8)) and ('q' in fenlist[2]):
+#                piece.has_moved = False
+#            else:
+#                piece.has_moved = True
+#            if (char == 'r') and ((row, col) == (8, 8)) and ('k' in fenlist[2]):
+#                piece.has_moved = False
+#            else:
+#                piece.has_moved = True
+#            if (char == 'R') and ((row, col) == (1, 1)) and ('Q' in fenlist[2]):
+#                piece.has_moved = False
+#            else:
+#                piece.has_moved = True
+#            if (char == 'R') and ((row, col) == (8, 1)) and ('K' in fenlist[2]):
+#                piece.has_moved = False
+#            else:
+#                piece.has_moved = True
+#            squarenum += 1
+#
+#    if fenlist[1] == 'w':  # this is the opposite, so we can advance turn later
+#        b.whose_turn = 'black'
+#    else:
+#        b.whose_turn = 'white'
+#
+#    if fenlist[3] != '-':
+#        b.enpassant = (row, col)
+#        b.enpassant_clock = 1
+#    else:
+#        b.enpassant = None
+#        b.enpassant_clock = 0
+#
+#    b.halfmove_clock = int(fenlist[4]) - 1
+#    b.turn = int(fenlist[5]) - 1
+#
+#    b.check = False
+#    b.checking_piece = None
+#    b.pinned_pieces = {}
+#    b.winner = None
+#    b.threatened_moves = {}
+#    b.deadpieces = []
+#    b.movehistory = []
+#    b.real_game = False
+#
+#    b.advance_turn()
+#
+#    return b
 
 if __name__ == '__main__':
     while True:
