@@ -41,8 +41,8 @@ def gui_process(jsonstring):
         mainboard.newgame()
         gui_sendboard(mainboard)
     elif command == u'rewind':
-	   mainboard.rewind()
-	   gui_sendboard(mainboard)
+        mainboard.rewind()
+        gui_sendboard(mainboard)
     elif command == u'getStats':
         pos_tuple = (int(jsondict['piecePos'][0]), int(jsondict['piecePos'][1]))
         gui_sendstats(mainboard, pos_tuple)
