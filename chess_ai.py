@@ -227,83 +227,52 @@ def evaluate(board, verbose=False, col=None, complexity = 3):
         print "Total favourability for %s: %s" % (col, (sum([material_advantage, pos_advantage, problem_pawns]) * direction))
     return sum([material_advantage, pos_advantage, problem_pawns]) * direction
 
-def negamax(board, ply=3, lastmove=None, bestmove=None):
+def negamax(board, max_ply=2, ply=2, lastmove=None, bestmove=None):
     col = board.whose_turn
-    movelist = get_movelist(board)
     if ply == 0:
-        return evaluate(board, 0, col)
-    elif ply == 2:
-        print "trying %s" % str(lastmove)
+        return (evaluate(board, 0, col, complexity=3), lastmove)
+    movelist = get_movelist(board)
+    print "getting %s movelist" % col
+#    elif ply == 2:
+#        print "trying %s to %s" % (parse(lastmove[0]), parse(lastmove[1]))
     max_score = -100000
     for move in movelist:
-        #print "%smoving %s from %s to %s" % (' '*ply, board.squares[move[0]], parse(move[0]), parse(move[1]))
+        print "%smoving %s from %s to %s%s" % ('-'*ply, board.squares[move[0]], parse(move[0]), parse(move[1]), "-"*(max_ply-ply))
         try:
             board.move(move[0], move[1])
-        except:
-            print "Move failed. The piece was %s" % board.squares[move[0]]
+        except Exception as x:
+            print "Move failed (%s). The piece was %s" % (x, board.squares[move[0]])
             print "From %s to %s" % (parse(move[0]), parse(move[1]))
             print "after %s" % str(lastmove)
             print board
             sys.exit()
-        score, internal_bestmove = -negamax(board, ply-1, move, bestmove)
+        score, internal_bestmove = negamax(board, max_ply, ply-1, lastmove=move, bestmove=bestmove)
+        score = -score
         board.rewind()
+        print "rewinding to %s's turn" % board.whose_turn
         if score > max_score:
             max_score = score
-            bestmove = internal_bestmove
+            # feed the best move down here
+            if ply == max_ply:
+                print "current best move: %s from %s to %s (val: %s)" % (board.squares[internal_bestmove[0]], parse(internal_bestmove[0]), parse(internal_bestmove[1]), score)
+                bestmove = internal_bestmove
+            else:
+                bestmove = lastmove
+
+
+
+
+
     return (max_score, bestmove)
+    #return max_score
 
-
-
-
-
-
-def lookahead(board, depth=2, max_depth=2):  # simulates all possible moves for boards at an arbitrary depth
-    new_movelist = {}  # here we store the moves at this depth, and the evaluation of their best outcome for us
-    movelist = get_movelist(board)
-    if depth > 0:
-        for move in movelist:
-            # print "%smoving %s from %s to %s" % (' '*depth, board.squares[move[0]], parse(move[0]), parse(move[1]))
-            board.move(move[0], move[1])
-            # print "move history: " + str(board.movehistory)
-            if board.winner is None:  # return the value of the best move up the tree
-                newboard_val = lookahead(board, depth-1, depth)  # here is the recursion
-            else:  # except if the game is over, in which case return a speial value
-                win_vals = {'white': 9999, 'black': -9999, 'nobody': 0}
-                newboard_val = win_vals[board.winner]
-            new_movelist[move] = newboard_val
-            # print "%s-this position: %s" % (' '*depth, newboard_val)
-            # print "%srewinding from %s to %s" % (' '*depth, parse(move[1]), parse(move[0]))
-            board.rewind()
-
-        #  get best move:
-        vals = [n for n in new_movelist.values()]
-        print "vals: " + str(vals)
-        if board.whose_turn == 'white':
-            m = max(vals)
-        else:
-            m = min(vals)
-        bestmoves = [i for i, j in enumerate(vals) if j == m]
-        bestmove = new_movelist.keys()[bestmoves[0]]
-        print (" "*depth) + "best move after %s at %s to %s is: %s at %s to %s" % \
-            (board.squares[board.movehistory[-1][0][1]], parse(board.movehistory[-1][0][0]),
-             parse(board.movehistory[-1][0][1]), board.squares[bestmove[0]],
-             parse(bestmove[0]), parse(bestmove[1]))
-
-        if depth < max_depth:
-            return evaluate(sim_move(board, (bestmove[0], bestmove[1])))
-
-        else:
-            return bestmove
-
-    elif depth == 0:
-        return evaluate(board)
 
 
 def get_movelist(board):
     movelist = []
-    for piece, moves in board.available_moves.iteritems():
+    for piece_pos, moves in board.available_moves.iteritems():
         for movepos in moves:
-            movelist.append((piece.pos, movepos))
+            movelist.append((piece_pos, movepos))
     return movelist
 
 
@@ -335,10 +304,11 @@ def best_move(board):
 
 
 def make_best_move(board):
-    # movedict = evaluate_moves(board)
-    bestmove = lookahead(board)
+    simboard = deepcopy(board)
+    bestmove = negamax(simboard)[1]
     print "Moving %s from %s to %s" % (board.squares[bestmove[0]], parse(bestmove[0]), parse(bestmove[1]))
     board.move(bestmove[0], bestmove[1])
+    print board
 
 
 def simulate(board):
@@ -362,13 +332,30 @@ def play_game():
 
 
 ### testing promotion, promotion rewind
-b.play('e4')
-b.play('d5')
-b.play('exd5')
-b.play('c6')
-b.play('dxc6')
+#b.play('e4')
+#b.play('d5')
+#b.play('exd5')
+#b.play('c6')
+#b.play('dxc6')
+#b.play('h6')
+#b.play('cxb7')
+#b.play('Na6')
+#b.play('bxc8=Q')
+#b.rewind()
+
+# testing checkmate??
+
+b.play('d4')
+b.play('c5')
+b.play('Nc3')
 b.play('h6')
-b.play('cxb7')
-b.play('Na6')
-b.play('bxc8=Q')
-b.rewind()
+b.play('Nb5')
+b.play('h5')
+b.play('Nxa7')
+b.play('h4')
+b.play('Nc6')
+b.play('Qa5')
+b.play('Nxa5')
+b.play('Rxa5')
+b.play('dxc5')
+make_best_move(b)

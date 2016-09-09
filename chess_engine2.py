@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 # chess_engine2: board.pieces turned into a list instead of dict
-# available_moves turned from object-linked to squares
+# available_moves changed from object-linked to square-linked
+# (for the sake of lookahead)
 
 # check the check code to see if special moves can allow you to escape check
 
@@ -15,7 +16,7 @@ from numpy import array  # for move generation vector arithmetic
 import sys
 import json
 
-debug = False
+debug = True
 
 # interface functions:
 
@@ -149,9 +150,11 @@ class Piece(object):
             try:
                 piece_movelist = board_obj.available_moves[self.pos]
             except Exception as x:
+                board_obj.show_moves()
                 print "Problem moving piece: %s" % x
                 print "piece: %s" % self
                 print "position: %s" % parse(self.pos)
+                print "on %s's turn" % board_obj.whose_turn
                 print "board state:"
                 print board_obj
             if newpos in piece_movelist:
@@ -664,16 +667,17 @@ class Board(object):
         else:
             checked_king = self.bking
 
-        if isinstance(self.checking_piece, SlidingPiece):
-            attack_vector = get_vector(checked_king.pos, self.checking_piece.pos)  # vector of positions between king and checker
+        if isinstance(self.squares[self.checking_piece], SlidingPiece):
+            attack_vector = get_vector(checked_king.pos, self.checking_piece)  # vector of positions between king and checker
         else:
             attack_vector = []
         threatened_squares = [item for sublist in self.threatened_moves.values() for item in sublist]  # collapse list of lists
-        for piece, pmoves in pseudolegal_moves.iteritems():
+        for piece_pos, pmoves in pseudolegal_moves.iteritems():
+            piece = self.squares[piece_pos]
             newmoves = []
             for move in pmoves:
                 # capture checking piece - can't do this in double check:
-                if self.squares[move] == self.checking_piece and self.check == 1:
+                if self.squares[move] == self.squares[self.checking_piece] and self.check == 1:
                     newmoves.append(move)
                 # interpose piece on attack vector, and become pinned - can't do this in double check
                 elif move in attack_vector and self.check == 1 and not isinstance(piece, King):
@@ -681,7 +685,7 @@ class Board(object):
                     self.pinned_pieces[piece] = attack_vector
                 elif isinstance(piece, King) and move not in threatened_squares:  # move king into safe square
                     newmoves.append(move)  # done???
-            legal_moves[piece] = newmoves
+            legal_moves[piece.pos] = newmoves
         return legal_moves, pseudolegal_specials
 
     def display(self, view='white'):
@@ -718,11 +722,13 @@ class Board(object):
     def __str__(self):
         return self.display(self.whose_turn)
 
-    def show_moves(self, move_object):
-        for piece_obj in move_object:
-            if len(move_object[piece_obj]) > 0:
-                print "%s@%s:" % (piece_obj, parse(piece_obj.pos)),
-                for m in move_object[piece_obj]:
+    def show_moves(self, move_object = None):
+        if move_object is None:
+            move_object = self.available_moves
+        for piece_pos in move_object:
+            if len(move_object[piece_pos]) > 0:
+                print "%s@%s:" % (self.squares[piece_pos], parse(piece_pos)),
+                for m in move_object[piece_pos]:
                     print parse(m),
                 print ""
 
@@ -967,6 +973,7 @@ class Board(object):
             self.playermessage("Illegal move, please try again.")
 
     def rewind(self):  # opposite of advance turn
+        print "####beginning rewind body"
         self.winner = None # since you can't rewind into a game that is over, this will always be true
         if self.whose_turn == 'white':
             self.turn -= 1
@@ -1048,6 +1055,7 @@ class Board(object):
                     if move in vector:
                         new_movelist.append(move)
                 self.available_moves[piece.pos] = new_movelist
+        print "#####rewind complete"
 
 #    def encode(self):
 #        charlist = []
