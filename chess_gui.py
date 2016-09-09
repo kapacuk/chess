@@ -38,7 +38,7 @@ def string_to_square(string):
 
 class ChessBoard(wx.Frame):
     def __init__(self, parent, title):
-        self.engine = subprocess.Popen('./chess_engine.py',
+        self.engine = subprocess.Popen('./chess_engine2.py',
                                        stdout=subprocess.PIPE, stdin=subprocess.PIPE,
                                        bufsize=0, universal_newlines=True)
         self.engine.stdin.write('{"command": "newGame"}\n')
@@ -132,6 +132,9 @@ class ChessBoard(wx.Frame):
         elif message == 'gameOver':
             self.winner = jsondict['winner']
             print "%s wins" % self.winner.capitalize()
+        elif message == 'console':
+            print jsondict['statement']
+
 
     def HighlightSquares(self, squares):
         self.DrawBoard(self.boardstate)
